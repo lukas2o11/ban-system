@@ -3,14 +3,17 @@ package com.github.lukas2o11.bansystem.bungee.data.ban;
 import com.github.lukas2o11.bansystem.api.Ban;
 import com.github.lukas2o11.bansystem.api.BanType;
 import com.github.lukas2o11.bansystem.bungee.BanSystemPlugin;
+import com.github.lukas2o11.bansystem.bungee.data.ban.tasks.ExpiredBanReaper;
 import com.github.lukas2o11.bansystem.bungee.data.database.MySQL;
 import com.github.lukas2o11.bansystem.bungee.data.ban.models.BanList;
 import com.github.lukas2o11.bansystem.bungee.data.ban.models.BanListEntry;
 import com.github.lukas2o11.bansystem.bungee.data.database.result.DBRow;
+import net.md_5.bungee.api.ProxyServer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 public class DefaultBanManager implements BanManager {
@@ -62,11 +65,22 @@ public class DefaultBanManager implements BanManager {
             "WHERE bb.player = ? " +
             "AND bt.type = ?;";
 
+    private @NotNull final BanSystemPlugin plugin;
     private @NotNull final MySQL mySQL;
+    private @NotNull final ExpiredBanReaper expiredBanReaper;
 
     public DefaultBanManager(@NotNull BanSystemPlugin plugin) {
+        this.plugin = plugin;
         this.mySQL = plugin.getMySQL();
+        this.expiredBanReaper = new ExpiredBanReaper(mySQL);
+
         createTables();
+        scheduleExpiredBanReaper();
+    }
+
+    private void scheduleExpiredBanReaper(){
+        ProxyServer.getInstance().getScheduler().schedule(plugin, () ->
+                expiredBanReaper.reapExpireBans().join(), 0, 5, TimeUnit.MINUTES);
     }
 
     private void createTables() {
